@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>STARLINK CLOUD v13</title>
+    <title>STARLINK CLOUD v15</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
@@ -26,15 +26,16 @@
         .stat-card b { color: var(--success); }
         .form-group { margin-bottom: 10px; display: flex; flex-direction: column; }
         label { font-size: 11px; font-weight: bold; margin-bottom: 4px; color: #475569; }
-        input, select { padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; }
+        input, select { padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; outline: none; }
+        input:focus { border-color: var(--primary); }
         .input-with-btn { display: flex; gap: 5px; }
         .input-with-btn input { flex: 1; }
         .btn-contact { background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 8px; width: 50px; cursor: pointer; font-size: 18px; }
         .hidden { display: none; }
         button { width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
         .btn-add { background: var(--primary); color: white; }
-        .btn-wa { background: #25d366; color: white; padding: 8px 12px; font-size: 10px; width: auto; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 5px; margin-right: 5px; }
-        .list-item { background: white; padding: 12px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #ddd; position: relative; }
+        .btn-wa { background: #25d366; color: white; padding: 8px 10px; font-size: 10px; width: auto; border-radius: 5px; display: inline-block; margin: 4px 4px 0 0; text-decoration: none; }
+        .list-item { background: white; padding: 12px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #ddd; }
         .border-hutang { border-left-color: var(--danger); }
         .border-lunas { border-left-color: var(--success); }
         #login-page { position:fixed; top:0; left:0; width:100%; height:100%; background:var(--dark); z-index:9999; display:flex; align-items:center; justify-content:center; }
@@ -44,20 +45,15 @@
 
 <div id="login-page">
     <div class="card" style="width:85%; max-width:400px; text-align:center;">
-        <h2 style="color:var(--primary); margin-bottom:5px;">STARLINK CLOUD</h2>
-        <p style="font-size:12px; color:#64748b;">Sistem Kasir & Pembukuan</p>
-        <div class="form-group" style="margin-top:20px;">
-            <input type="email" id="loginEmail" placeholder="Email Admin">
-        </div>
-        <div class="form-group">
-            <input type="password" id="loginPassword" placeholder="Password">
-        </div>
-        <button class="btn-add" onclick="login()">MASUK KE SISTEM</button>
+        <h2 style="color:var(--primary);">STARLINK POS</h2>
+        <div class="form-group"><input type="email" id="loginEmail" placeholder="Email Admin"></div>
+        <div class="form-group"><input type="password" id="loginPassword" placeholder="Password"></div>
+        <button class="btn-add" onclick="login()">MASUK</button>
         <p id="loginError" style="color:red; font-size:11px; margin-top:10px;"></p>
     </div>
 </div>
 
-<div style="background: var(--dark); color: white; padding: 15px; text-align: center; font-weight: bold;">🚀 STARLINK POS v13</div>
+<div style="background: var(--dark); color: white; padding: 15px; text-align: center; font-weight: bold;">🚀 STARLINK POS v15</div>
 
 <div class="container">
     <div id="page-kasir" class="page active">
@@ -66,57 +62,35 @@
             <div><small>Total Piutang</small><h3 id="dashHutang" style="color:#f87171">Rp 0</h3></div>
         </div>
         <div class="card">
-            <div class="form-group">
-                <label>Nama Pelanggan</label>
-                <input type="text" id="keterangan" placeholder="Nama pelanggan">
+            <div class="form-group"><label>Nama Pelanggan</label><input type="text" id="keterangan" placeholder="Nama"></div>
+            <div class="form-group"><label>Nomor WhatsApp</label>
+                <div class="input-with-btn"><input type="tel" id="nomorHP" placeholder="08..."><button type="button" class="btn-contact" onclick="ambilKontak()">👤</button></div>
             </div>
-            <div class="form-group">
-                <label>Nomor WhatsApp</label>
-                <div class="input-with-btn">
-                    <input type="tel" id="nomorHP" placeholder="0812...">
-                    <button type="button" class="btn-contact" onclick="ambilKontak()">👤</button>
-                </div>
-            </div>
-            <div class="form-group">
-                <label>Layanan</label>
+            <div class="form-group"><label>Layanan</label>
                 <select id="jenis" onchange="toggleFields()">
-                    <option value="Pulsa">Pulsa/Kuota</option>
-                    <option value="Token PLN">Token PLN</option>
-                    <option value="Transfer">Transfer Bank</option>
-                    <option value="Tarik Tunai">Tarik Tunai</option>
+                    <option value="Pulsa">Pulsa/Kuota</option><option value="Token PLN">Token PLN</option>
+                    <option value="Transfer">Transfer Bank</option><option value="Tarik Tunai">Tarik Tunai</option>
                 </select>
             </div>
-            <div id="fieldModal" class="form-group"><label>Harga Modal</label><input type="number" id="modal" placeholder="0"></div>
-            <div id="fieldJual" class="form-group"><label>Harga Jual</label><input type="number" id="jual" placeholder="0"></div>
-            <div id="fieldNominal" class="form-group hidden"><label>Nominal Transfer</label><input type="number" id="nominal" placeholder="0"></div>
-            <div id="fieldAdmin" class="form-group hidden"><label>Biaya Admin (Laba)</label><input type="number" id="admin" placeholder="0"></div>
-            <div class="form-group">
-                <label>Status Bayar</label>
-                <select id="bayar">
-                    <option value="Lunas">Lunas</option>
-                    <option value="Belum Lunas">Belum Lunas (Hutang)</option>
-                </select>
+            <div id="fieldModal" class="form-group"><label>Harga Modal</label><input type="text" id="modal" placeholder="0" oninput="formatRibuan(this)"></div>
+            <div id="fieldJual" class="form-group"><label>Harga Jual</label><input type="text" id="jual" placeholder="0" oninput="formatRibuan(this)"></div>
+            <div id="fieldNominal" class="form-group hidden"><label>Nominal Transfer/Tarik</label><input type="text" id="nominal" placeholder="0" oninput="formatRibuan(this)"></div>
+            <div id="fieldAdmin" class="form-group hidden"><label>Biaya Admin (Laba)</label><input type="text" id="admin" placeholder="0" oninput="formatRibuan(this)"></div>
+            <div class="form-group"><label>Status</label>
+                <select id="bayar"><option value="Lunas">Lunas</option><option value="Belum Lunas">Belum Lunas (Hutang)</option></select>
             </div>
             <button class="btn-add" onclick="tambahData()">SIMPAN TRANSAKSI</button>
         </div>
     </div>
 
-    <div id="page-hutang" class="page">
-        <h3>🔴 Daftar Hutang</h3>
-        <div id="listHutang"></div>
-    </div>
-
-    <div id="page-selesai" class="page">
-        <h3>✅ Riwayat Selesai</h3>
-        <div id="listLunas"></div>
-    </div>
-
+    <div id="page-hutang" class="page"><h3>🔴 Daftar Hutang</h3><div id="listHutang"></div></div>
+    <div id="page-selesai" class="page"><h3>✅ Riwayat Selesai</h3><div id="listLunas"></div></div>
     <div id="page-laporan" class="page">
-        <h3>📊 Laporan Laba</h3>
+        <h3>📊 Laporan</h3>
         <div class="card">
             <div class="stat-card"><span>Laba Hari Ini</span><b id="labaHari">0</b></div>
             <div class="stat-card"><span>Laba Bulan Ini</span><b id="labaBulan">0</b></div>
-            <div class="stat-card" style="background:#f8fafc"><span>Total Seluruh Laba</span><b id="labaSemua" style="color:var(--primary)">0</b></div>
+            <div class="stat-card"><span>Total Laba</span><b id="labaSemua">0</b></div>
         </div>
         <button onclick="exportKeExcel()" style="background:#64748b; color:white; margin-bottom:10px;">Download Excel</button>
         <button onclick="logout()" style="background:var(--danger); color:white;">Logout</button>
@@ -131,7 +105,11 @@
 </div>
 
 <script>
-// --- KONFIGURASI FIREBASE ---
+// --- KONFIGURASI ---
+function templatePesanWA(nama, jenis, nominal) {
+    return `Halo ${nama}, kami dari STARLINK mengingatkan tagihan ${jenis} sebesar Rp ${parseInt(nominal).toLocaleString()} belum lunas. Mohon segera diselesaikan ya. Terima kasih.`;
+}
+
 const firebaseConfig = {
   apiKey: "AIzaSyBGkyMU8UzjeGWsYRf2AO_txvsE0gPqsYY",
   authDomain: "catatan-starlink.firebaseapp.com",
@@ -143,12 +121,25 @@ const firebaseConfig = {
   measurementId: "G-4JYN9TFNEE"
 };
 
-// Inisialisasi Firebase
 firebase.initializeApp(firebaseConfig);
 const dbRef = firebase.database().ref('transaksi');
 const auth = firebase.auth();
 
-// --- LOGIKA LOGIN ---
+// --- PEMISAH RIBUAN LOGIC ---
+function formatRibuan(input) {
+    let val = input.value.replace(/[^0-9]/g, "");
+    if (val) {
+        input.value = parseInt(val).toLocaleString('id-ID');
+    } else {
+        input.value = "";
+    }
+}
+
+function parseAngka(str) {
+    return parseInt(str.replace(/\./g, "")) || 0;
+}
+
+// --- AUTH LOGIC ---
 function login() {
     const email = document.getElementById('loginEmail').value;
     const pass = document.getElementById('loginPassword').value;
@@ -156,41 +147,18 @@ function login() {
         document.getElementById('loginError').innerText = "Gagal: " + e.message;
     });
 }
-
 function logout() { auth.signOut(); }
-
 auth.onAuthStateChanged(user => {
-    if (user) {
-        document.getElementById('login-page').style.display = 'none';
-        initDataListener();
-    } else {
-        document.getElementById('login-page').style.display = 'flex';
-    }
+    if (user) { document.getElementById('login-page').style.display = 'none'; initData(); }
+    else { document.getElementById('login-page').style.display = 'flex'; }
 });
 
-// --- FITUR KONTAK & WA ---
-async function ambilKontak() {
-    try {
-        const props = ['name', 'tel'];
-        const contacts = await navigator.contacts.select(props, {multiple: false});
-        if (contacts.length) {
-            document.getElementById('keterangan').value = contacts[0].name[0];
-            let phone = contacts[0].tel[0].replace(/[^0-9]/g, "");
-            document.getElementById('nomorHP').value = phone;
-        }
-    } catch (e) { alert("Gunakan Chrome di Android + HTTPS untuk fitur ini."); }
+// --- CORE LOGIC ---
+function formatWaktuIndo(ts) {
+    const d = new Date(ts);
+    return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
 }
 
-function tagihWA(nama, hp, nominal, jenis) {
-    if(!hp) return alert("Nomor WA tidak ada!");
-    let cleanHP = hp.replace(/[^0-9]/g, "");
-    if(cleanHP.startsWith("0")) cleanHP = "62" + cleanHP.slice(1);
-    
-    const pesan = `Halo ${nama}, dari STARLINK mengingatkan tagihan ${jenis} Rp ${parseInt(nominal).toLocaleString()} belum lunas. Mohon segera diselesaikan. Terima kasih.`;
-    window.open(`https://wa.me/${cleanHP}?text=${encodeURIComponent(pesan)}`, '_blank');
-}
-
-// --- LOGIKA TRANSAKSI ---
 function toggleFields() {
     const jenis = document.getElementById('jenis').value;
     const isT = (jenis === "Transfer" || jenis === "Tarik Tunai");
@@ -201,94 +169,102 @@ function toggleFields() {
 }
 
 function tambahData() {
-    const jenis = document.getElementById('jenis').value;
-    const bayar = document.getElementById('bayar').value;
-    const ket = document.getElementById('keterangan').value;
-    const hp = document.getElementById('nomorHP').value;
+    const jenis = document.getElementById('jenis').value, bayar = document.getElementById('bayar').value;
+    const ket = document.getElementById('keterangan').value, hp = document.getElementById('nomorHP').value;
     const skrg = new Date();
-    
     let harga = 0, laba = 0;
+
     if (jenis === "Transfer" || jenis === "Tarik Tunai") {
-        harga = document.getElementById('nominal').value;
-        laba = document.getElementById('admin').value || 0;
+        harga = parseAngka(document.getElementById('nominal').value);
+        laba = parseAngka(document.getElementById('admin').value);
     } else {
-        const m = document.getElementById('modal').value || 0;
-        const j = document.getElementById('jual').value || 0;
-        harga = j; laba = parseInt(j) - parseInt(m);
+        const m = parseAngka(document.getElementById('modal').value), j = parseAngka(document.getElementById('jual').value);
+        harga = j; laba = j - m;
     }
 
-    if(!harga || !ket || !hp) return alert("Lengkapi Nama, WA, dan Harga!");
+    if(!harga || !ket || !hp) return alert("Lengkapi data!");
 
     dbRef.push({
-        tgl: skrg.toISOString().split('T')[0],
-        bln: skrg.getMonth() + 1,
-        thn: skrg.getFullYear(),
+        waktuFormated: formatWaktuIndo(skrg.getTime()),
+        tglKey: skrg.toISOString().split('T')[0],
+        blnKey: skrg.getMonth() + 1,
         timestamp: Date.now(),
-        jenis, bayar, hp, harga: parseInt(harga), laba: parseInt(laba), ket
+        jenis, bayar, hp, harga: harga, laba: laba, ket
     }).then(() => {
-        alert("Berhasil!");
-        document.getElementById('keterangan').value = '';
+        alert("Berhasil disimpan!");
+        document.getElementById('keterangan').value = ''; 
         document.getElementById('nomorHP').value = '';
+        document.getElementById('modal').value = '';
+        document.getElementById('jual').value = '';
+        document.getElementById('nominal').value = '';
+        document.getElementById('admin').value = '';
     });
 }
 
-function initDataListener() {
+function initData() {
     dbRef.on('value', (snapshot) => {
         const data = snapshot.val();
-        renderSemua(data);
+        render(data);
     });
 }
 
-function renderSemua(data) {
-    const listH = document.getElementById('listHutang');
-    const listL = document.getElementById('listLunas');
+function render(data) {
+    const listH = document.getElementById('listHutang'), listL = document.getElementById('listLunas');
     listH.innerHTML = ''; listL.innerHTML = '';
-    
     let tLaba = 0, tHutang = 0, lHari = 0, lBulan = 0, lSemua = 0;
-    const tglSkrg = new Date().toISOString().split('T')[0];
-    const blnSkrg = new Date().getMonth() + 1;
+    const hariIni = new Date().toISOString().split('T')[0], blnIni = new Date().getMonth() + 1;
 
     if(data) {
-        const items = Object.keys(data).map(key => ({ id: key, ...data[key] }));
-        items.sort((a, b) => b.timestamp - a.timestamp);
-
+        const items = Object.keys(data).map(k => ({ id: k, ...data[k] })).sort((a,b) => b.timestamp - a.timestamp);
         items.forEach(item => {
+            const isHutang = item.bayar === 'Belum Lunas';
             const html = `
-                <div class="list-item ${item.bayar === 'Belum Lunas' ? 'border-hutang' : 'border-lunas'}">
+                <div class="list-item ${isHutang ? 'border-hutang' : 'border-lunas'}">
                     <b>${item.ket}</b> <br>
-                    <small>${item.tgl} • ${item.jenis}</small><br>
-                    <small>Total: Rp ${item.harga.toLocaleString()} | WA: ${item.hp}</small>
-                    <div style="margin-top:8px">
-                        ${item.bayar === 'Belum Lunas' 
-                            ? `<button class="btn-wa" style="background:var(--success)" onclick="lunaskan('${item.id}')">LUNASKAN</button>
-                               <button class="btn-wa" onclick="tagihWA('${item.ket}', '${item.hp}', '${item.harga}', '${item.jenis}')">💬 TAGIH WA</button>` 
-                            : `<span style="color:green; font-size:11px">✓ SELESAI</span>`}
-                        <button class="btn-wa" style="background:gray" onclick="hapusSatu('${item.id}')">Hapus</button>
+                    <small>${item.waktuFormated} • ${item.jenis}</small><br>
+                    <small>Total: Rp ${item.harga.toLocaleString('id-ID')} | Laba: Rp ${item.laba.toLocaleString('id-ID')}</small>
+                    <div>
+                        ${isHutang 
+                            ? `<button class="btn-wa" style="background:var(--success)" onclick="updateStat('${item.id}', 'Lunas')">LUNASKAN</button>
+                               <button class="btn-wa" onclick="kirimWA('${item.ket}', '${item.hp}', '${item.harga}', '${item.jenis}')">💬 TAGIH</button>` 
+                            : `<button class="btn-wa" style="background:orange" onclick="updateStat('${item.id}', 'Belum Lunas')">↩️ KE HUTANG</button>`}
+                        <button class="btn-wa" style="background:gray" onclick="hapus('${item.id}')">Hapus</button>
                     </div>
                 </div>`;
             
-            if(item.bayar === 'Belum Lunas') {
-                listH.innerHTML += html;
-                tHutang += item.harga;
-            } else {
-                listL.innerHTML += html;
-                tLaba += item.laba;
-                lSemua += item.laba;
-                if(item.tgl === tglSkrg) lHari += item.laba;
-                if(item.bln === blnSkrg) lBulan += item.laba;
+            if(isHutang) { listH.innerHTML += html; tHutang += item.harga; }
+            else { 
+                listL.innerHTML += html; tLaba += item.laba; lSemua += item.laba;
+                if(item.tglKey === hariIni) lHari += item.laba;
+                if(item.blnKey === blnIni) lBulan += item.laba;
             }
         });
     }
-
-    document.getElementById('dashLaba').innerText = "Rp " + tLaba.toLocaleString();
-    document.getElementById('dashHutang').innerText = "Rp " + tHutang.toLocaleString();
-    document.getElementById('labaHari').innerText = "Rp " + lHari.toLocaleString();
-    document.getElementById('labaBulan').innerText = "Rp " + lBulan.toLocaleString();
-    document.getElementById('labaSemua').innerText = "Rp " + lSemua.toLocaleString();
+    document.getElementById('dashLaba').innerText = "Rp " + tLaba.toLocaleString('id-ID');
+    document.getElementById('dashHutang').innerText = "Rp " + tHutang.toLocaleString('id-ID');
+    document.getElementById('labaHari').innerText = "Rp " + lHari.toLocaleString('id-ID');
+    document.getElementById('labaBulan').innerText = "Rp " + lBulan.toLocaleString('id-ID');
+    document.getElementById('labaSemua').innerText = "Rp " + lSemua.toLocaleString('id-ID');
 }
 
-function lunaskan(id) { dbRef.child(id).update({ bayar: 'Lunas' }); }
-function hapusSatu(id) { if(confirm("Hapus data ini?")) dbRef.child(id).remove(); }
+function updateStat(id, stat) { dbRef.child(id).update({ bayar: stat }); }
+function hapus(id) { if(confirm("Hapus data?")) dbRef.child(id).remove(); }
+
+function kirimWA(nama, hp, nominal, jenis) {
+    let cleanHP = hp.replace(/[^0-9]/g, "");
+    if(cleanHP.startsWith("0")) cleanHP = "62" + cleanHP.slice(1);
+    window.open(`https://wa.me/${cleanHP}?text=${encodeURIComponent(templatePesanWA(nama, jenis, nominal))}`, '_blank');
+}
+
+async function ambilKontak() {
+    try {
+        const c = await navigator.contacts.select(['name', 'tel'], {multiple: false});
+        if (c.length) {
+            document.getElementById('keterangan').value = c[0].name[0];
+            document.getElementById('nomorHP').value = c[0].tel[0].replace(/[^0-9]/g, "");
+        }
+    } catch (e) { alert("Gunakan Chrome Android + HTTPS"); }
+}
 
 function bukaHalaman(pg, el) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -299,11 +275,10 @@ function bukaHalaman(pg, el) {
 
 function exportKeExcel() {
     dbRef.once('value', (s) => {
-        const items = Object.values(s.val() || {});
-        const ws = XLSX.utils.json_to_sheet(items);
+        const ws = XLSX.utils.json_to_sheet(Object.values(s.val() || {}));
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Laporan");
-        XLSX.writeFile(wb, "Starlink_Laporan.xlsx");
+        XLSX.writeFile(wb, "Starlink_Report.xlsx");
     });
 }
 </script>
