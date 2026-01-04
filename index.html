@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>STARLINK CLOUD v15</title>
+    <title>STARLINK CLOUD v16</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
@@ -53,12 +53,12 @@
     </div>
 </div>
 
-<div style="background: var(--dark); color: white; padding: 15px; text-align: center; font-weight: bold;">🚀 STARLINK POS v15</div>
+<div style="background: var(--dark); color: white; padding: 15px; text-align: center; font-weight: bold;">🚀 STARLINK POS v16</div>
 
 <div class="container">
     <div id="page-kasir" class="page active">
         <div class="mini-dash">
-            <div><small>Laba Selesai</small><h3 id="dashLaba">Rp 0</h3></div>
+            <div><small>Laba Selesai (Bulan Ini)</small><h3 id="dashLaba">Rp 0</h3></div>
             <div><small>Total Piutang</small><h3 id="dashHutang" style="color:#f87171">Rp 0</h3></div>
         </div>
         <div class="card">
@@ -86,11 +86,12 @@
     <div id="page-hutang" class="page"><h3>🔴 Daftar Hutang</h3><div id="listHutang"></div></div>
     <div id="page-selesai" class="page"><h3>✅ Riwayat Selesai</h3><div id="listLunas"></div></div>
     <div id="page-laporan" class="page">
-        <h3>📊 Laporan</h3>
+        <h3>📊 Laporan Laba</h3>
         <div class="card">
-            <div class="stat-card"><span>Laba Hari Ini</span><b id="labaHari">0</b></div>
-            <div class="stat-card"><span>Laba Bulan Ini</span><b id="labaBulan">0</b></div>
-            <div class="stat-card"><span>Total Laba</span><b id="labaSemua">0</b></div>
+            <div class="stat-card"><span>Hari Ini</span><b id="labaHari">0</b></div>
+            <div class="stat-card"><span>Bulan Ini</span><b id="labaBulan">0</b></div>
+            <div class="stat-card" style="background:#f0f9ff"><span>Tahun Ini (Rekap)</span><b id="labaTahun" style="color:var(--primary)">0</b></div>
+            <div class="stat-card"><span>Total Seluruhnya</span><b id="labaSemua">0</b></div>
         </div>
         <button onclick="exportKeExcel()" style="background:#64748b; color:white; margin-bottom:10px;">Download Excel</button>
         <button onclick="logout()" style="background:var(--danger); color:white;">Logout</button>
@@ -125,21 +126,13 @@ firebase.initializeApp(firebaseConfig);
 const dbRef = firebase.database().ref('transaksi');
 const auth = firebase.auth();
 
-// --- PEMISAH RIBUAN LOGIC ---
 function formatRibuan(input) {
     let val = input.value.replace(/[^0-9]/g, "");
-    if (val) {
-        input.value = parseInt(val).toLocaleString('id-ID');
-    } else {
-        input.value = "";
-    }
+    if (val) { input.value = parseInt(val).toLocaleString('id-ID'); } else { input.value = ""; }
 }
+function parseAngka(str) { return parseInt(str.replace(/\./g, "")) || 0; }
 
-function parseAngka(str) {
-    return parseInt(str.replace(/\./g, "")) || 0;
-}
-
-// --- AUTH LOGIC ---
+// --- AUTH ---
 function login() {
     const email = document.getElementById('loginEmail').value;
     const pass = document.getElementById('loginPassword').value;
@@ -153,7 +146,7 @@ auth.onAuthStateChanged(user => {
     else { document.getElementById('login-page').style.display = 'flex'; }
 });
 
-// --- CORE LOGIC ---
+// --- LOGIKA WAKTU ---
 function formatWaktuIndo(ts) {
     const d = new Date(ts);
     return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
@@ -186,38 +179,36 @@ function tambahData() {
 
     dbRef.push({
         waktuFormated: formatWaktuIndo(skrg.getTime()),
-        tglKey: skrg.toISOString().split('T')[0],
-        blnKey: skrg.getMonth() + 1,
+        tglKey: skrg.toISOString().split('T')[0], // format: YYYY-MM-DD
+        blnKey: skrg.getFullYear() + "-" + String(skrg.getMonth() + 1).padStart(2, '0'), // format: YYYY-MM
+        thnKey: skrg.getFullYear(), // format: YYYY
         timestamp: Date.now(),
         jenis, bayar, hp, harga: harga, laba: laba, ket
     }).then(() => {
-        alert("Berhasil disimpan!");
-        document.getElementById('keterangan').value = ''; 
-        document.getElementById('nomorHP').value = '';
-        document.getElementById('modal').value = '';
-        document.getElementById('jual').value = '';
-        document.getElementById('nominal').value = '';
-        document.getElementById('admin').value = '';
+        alert("Berhasil!");
+        ["keterangan","nomorHP","modal","jual","nominal","admin"].forEach(id => document.getElementById(id).value = '');
     });
 }
 
-function initData() {
-    dbRef.on('value', (snapshot) => {
-        const data = snapshot.val();
-        render(data);
-    });
-}
+function initData() { dbRef.on('value', (snapshot) => render(snapshot.val())); }
 
 function render(data) {
     const listH = document.getElementById('listHutang'), listL = document.getElementById('listLunas');
     listH.innerHTML = ''; listL.innerHTML = '';
-    let tLaba = 0, tHutang = 0, lHari = 0, lBulan = 0, lSemua = 0;
-    const hariIni = new Date().toISOString().split('T')[0], blnIni = new Date().getMonth() + 1;
+    
+    let tHutang = 0, lHari = 0, lBulan = 0, lTahun = 0, lSemua = 0;
+    
+    const skrg = new Date();
+    const hariIni = skrg.toISOString().split('T')[0];
+    const bulanIni = skrg.getFullYear() + "-" + String(skrg.getMonth() + 1).padStart(2, '0');
+    const tahunIni = skrg.getFullYear();
 
     if(data) {
         const items = Object.keys(data).map(k => ({ id: k, ...data[k] })).sort((a,b) => b.timestamp - a.timestamp);
         items.forEach(item => {
             const isHutang = item.bayar === 'Belum Lunas';
+            
+            // Logika List Tampilan
             const html = `
                 <div class="list-item ${isHutang ? 'border-hutang' : 'border-lunas'}">
                     <b>${item.ket}</b> <br>
@@ -232,30 +223,35 @@ function render(data) {
                     </div>
                 </div>`;
             
-            if(isHutang) { listH.innerHTML += html; tHutang += item.harga; }
-            else { 
-                listL.innerHTML += html; tLaba += item.laba; lSemua += item.laba;
+            if(isHutang) { 
+                listH.innerHTML += html; 
+                tHutang += item.harga; 
+            } else { 
+                listL.innerHTML += html;
+                // Hitung Laba hanya yang LUNAS
+                lSemua += item.laba;
                 if(item.tglKey === hariIni) lHari += item.laba;
-                if(item.blnKey === blnIni) lBulan += item.laba;
+                if(item.blnKey === bulanIni) lBulan += item.laba;
+                if(item.thnKey == tahunIni) lTahun += item.laba;
             }
         });
     }
-    document.getElementById('dashLaba').innerText = "Rp " + tLaba.toLocaleString('id-ID');
+
+    // Update Dashboard & Laporan
+    document.getElementById('dashLaba').innerText = "Rp " + lBulan.toLocaleString('id-ID');
     document.getElementById('dashHutang').innerText = "Rp " + tHutang.toLocaleString('id-ID');
     document.getElementById('labaHari').innerText = "Rp " + lHari.toLocaleString('id-ID');
     document.getElementById('labaBulan').innerText = "Rp " + lBulan.toLocaleString('id-ID');
+    document.getElementById('labaTahun').innerText = "Rp " + lTahun.toLocaleString('id-ID');
     document.getElementById('labaSemua').innerText = "Rp " + lSemua.toLocaleString('id-ID');
 }
 
 function updateStat(id, stat) { dbRef.child(id).update({ bayar: stat }); }
 function hapus(id) { if(confirm("Hapus data?")) dbRef.child(id).remove(); }
-
-function kirimWA(nama, hp, nominal, jenis) {
-    let cleanHP = hp.replace(/[^0-9]/g, "");
-    if(cleanHP.startsWith("0")) cleanHP = "62" + cleanHP.slice(1);
-    window.open(`https://wa.me/${cleanHP}?text=${encodeURIComponent(templatePesanWA(nama, jenis, nominal))}`, '_blank');
+function kirimWA(n, h, m, j) {
+    let hp = h.replace(/[^0-9]/g, ""); if(hp.startsWith("0")) hp = "62" + hp.slice(1);
+    window.open(`https://wa.me/${hp}?text=${encodeURIComponent(templatePesanWA(n, j, m))}`, '_blank');
 }
-
 async function ambilKontak() {
     try {
         const c = await navigator.contacts.select(['name', 'tel'], {multiple: false});
@@ -265,20 +261,18 @@ async function ambilKontak() {
         }
     } catch (e) { alert("Gunakan Chrome Android + HTTPS"); }
 }
-
 function bukaHalaman(pg, el) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById('page-' + pg).classList.add('active');
     el.classList.add('active');
 }
-
 function exportKeExcel() {
     dbRef.once('value', (s) => {
         const ws = XLSX.utils.json_to_sheet(Object.values(s.val() || {}));
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Laporan");
-        XLSX.writeFile(wb, "Starlink_Report.xlsx");
+        XLSX.writeFile(wb, "Starlink_Laporan.xlsx");
     });
 }
 </script>
