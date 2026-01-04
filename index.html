@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>STARLINK CLOUD v16</title>
+    <title>STARLINK CLOUD v17</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
     <style>
-        :root { --primary: #0284c7; --success: #16a34a; --danger: #dc2626; --dark: #0f172a; --bg: #f1f5f9; }
+        :root { --primary: #0284c7; --success: #16a34a; --danger: #dc2626; --dark: #0f172a; --bg: #f1f5f9; --warning: #f59e0b; }
         body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg); margin: 0; padding-bottom: 80px; }
         .bottom-nav { position: fixed; bottom: 0; width: 100%; background: white; display: flex; justify-content: space-around; padding: 12px 0; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); z-index: 1000; }
         .nav-item { text-align: center; color: #64748b; cursor: pointer; font-size: 11px; flex: 1; }
@@ -27,17 +27,14 @@
         .form-group { margin-bottom: 10px; display: flex; flex-direction: column; }
         label { font-size: 11px; font-weight: bold; margin-bottom: 4px; color: #475569; }
         input, select { padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; outline: none; }
-        input:focus { border-color: var(--primary); }
-        .input-with-btn { display: flex; gap: 5px; }
-        .input-with-btn input { flex: 1; }
-        .btn-contact { background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 8px; width: 50px; cursor: pointer; font-size: 18px; }
         .hidden { display: none; }
         button { width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
         .btn-add { background: var(--primary); color: white; }
-        .btn-wa { background: #25d366; color: white; padding: 8px 10px; font-size: 10px; width: auto; border-radius: 5px; display: inline-block; margin: 4px 4px 0 0; text-decoration: none; }
-        .list-item { background: white; padding: 12px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #ddd; }
+        .btn-upload { background: var(--warning); color: white; margin-top: 10px; }
+        .list-item { background: white; padding: 12px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #ddd; position: relative; }
         .border-hutang { border-left-color: var(--danger); }
         .border-lunas { border-left-color: var(--success); }
+        .badge-pending { position: absolute; top: 10px; right: 10px; background: var(--warning); color: white; font-size: 9px; padding: 2px 6px; border-radius: 10px; }
         #login-page { position:fixed; top:0; left:0; width:100%; height:100%; background:var(--dark); z-index:9999; display:flex; align-items:center; justify-content:center; }
     </style>
 </head>
@@ -53,19 +50,16 @@
     </div>
 </div>
 
-<div style="background: var(--dark); color: white; padding: 15px; text-align: center; font-weight: bold;">🚀 STARLINK POS v16</div>
+<div style="background: var(--dark); color: white; padding: 15px; text-align: center; font-weight: bold;">🚀 STARLINK POS v17 (OFFLINE)</div>
 
 <div class="container">
     <div id="page-kasir" class="page active">
         <div class="mini-dash">
-            <div><small>Laba Selesai (Bulan Ini)</small><h3 id="dashLaba">Rp 0</h3></div>
+            <div><small>Laba Selesai</small><h3 id="dashLaba">Rp 0</h3></div>
             <div><small>Total Piutang</small><h3 id="dashHutang" style="color:#f87171">Rp 0</h3></div>
         </div>
         <div class="card">
             <div class="form-group"><label>Nama Pelanggan</label><input type="text" id="keterangan" placeholder="Nama"></div>
-            <div class="form-group"><label>Nomor WhatsApp</label>
-                <div class="input-with-btn"><input type="tel" id="nomorHP" placeholder="08..."><button type="button" class="btn-contact" onclick="ambilKontak()">👤</button></div>
-            </div>
             <div class="form-group"><label>Layanan</label>
                 <select id="jenis" onchange="toggleFields()">
                     <option value="Pulsa">Pulsa/Kuota</option><option value="Token PLN">Token PLN</option>
@@ -79,19 +73,23 @@
             <div class="form-group"><label>Status</label>
                 <select id="bayar"><option value="Lunas">Lunas</option><option value="Belum Lunas">Belum Lunas (Hutang)</option></select>
             </div>
-            <button class="btn-add" onclick="tambahData()">SIMPAN TRANSAKSI</button>
+            <button class="btn-add" onclick="tambahDataOffline()">SIMPAN KE HP</button>
         </div>
     </div>
 
     <div id="page-hutang" class="page"><h3>🔴 Daftar Hutang</h3><div id="listHutang"></div></div>
     <div id="page-selesai" class="page"><h3>✅ Riwayat Selesai</h3><div id="listLunas"></div></div>
+    
     <div id="page-laporan" class="page">
-        <h3>📊 Laporan Laba</h3>
+        <h3>📊 Laporan & Sinkron</h3>
+        <div class="card" style="background: #fffbeb; border: 1px solid #fde68a;">
+            <p style="font-size: 12px; margin: 0;">Data belum upload: <b id="pendingCount">0</b></p>
+            <button class="btn-upload" onclick="uploadDataKeCloud()">☁️ UPLOAD DATA KE CLOUD</button>
+        </div>
         <div class="card">
             <div class="stat-card"><span>Hari Ini</span><b id="labaHari">0</b></div>
             <div class="stat-card"><span>Bulan Ini</span><b id="labaBulan">0</b></div>
-            <div class="stat-card" style="background:#f0f9ff"><span>Tahun Ini (Rekap)</span><b id="labaTahun" style="color:var(--primary)">0</b></div>
-            <div class="stat-card"><span>Total Seluruhnya</span><b id="labaSemua">0</b></div>
+            <div class="stat-card"><span>Tahun Ini</span><b id="labaTahun">0</b></div>
         </div>
         <button onclick="exportKeExcel()" style="background:#64748b; color:white; margin-bottom:10px;">Download Excel</button>
         <button onclick="logout()" style="background:var(--danger); color:white;">Logout</button>
@@ -106,11 +104,6 @@
 </div>
 
 <script>
-// --- KONFIGURASI ---
-function templatePesanWA(nama, jenis, nominal) {
-    return `Halo ${nama}, kami dari STARLINK mengingatkan tagihan ${jenis} sebesar Rp ${parseInt(nominal).toLocaleString()} belum lunas. Mohon segera diselesaikan ya. Terima kasih.`;
-}
-
 const firebaseConfig = {
   apiKey: "AIzaSyBGkyMU8UzjeGWsYRf2AO_txvsE0gPqsYY",
   authDomain: "catatan-starlink.firebaseapp.com",
@@ -118,38 +111,156 @@ const firebaseConfig = {
   projectId: "catatan-starlink",
   storageBucket: "catatan-starlink.firebasestorage.app",
   messagingSenderId: "974645078052",
-  appId: "1:974645078052:web:d8cc92795feba8325990b1",
-  measurementId: "G-4JYN9TFNEE"
+  appId: "1:974645078052:web:d8cc92795feba8325990b1"
 };
 
 firebase.initializeApp(firebaseConfig);
 const dbRef = firebase.database().ref('transaksi');
 const auth = firebase.auth();
 
-function formatRibuan(input) {
-    let val = input.value.replace(/[^0-9]/g, "");
-    if (val) { input.value = parseInt(val).toLocaleString('id-ID'); } else { input.value = ""; }
+// --- LOCAL STORAGE LOGIC ---
+let dataLokal = JSON.parse(localStorage.getItem('starlink_data')) || [];
+
+function formatRibuan(i) {
+    let v = i.value.replace(/[^0-9]/g, "");
+    i.value = v ? parseInt(v).toLocaleString('id-ID') : "";
 }
-function parseAngka(str) { return parseInt(str.replace(/\./g, "")) || 0; }
+function parseAngka(s) { return parseInt(s.replace(/\./g, "")) || 0; }
 
 // --- AUTH ---
 function login() {
-    const email = document.getElementById('loginEmail').value;
-    const pass = document.getElementById('loginPassword').value;
-    auth.signInWithEmailAndPassword(email, pass).catch(e => {
-        document.getElementById('loginError').innerText = "Gagal: " + e.message;
-    });
+    const e = document.getElementById('loginEmail').value, p = document.getElementById('loginPassword').value;
+    auth.signInWithEmailAndPassword(e, p).catch(err => alert(err.message));
 }
 function logout() { auth.signOut(); }
 auth.onAuthStateChanged(user => {
-    if (user) { document.getElementById('login-page').style.display = 'none'; initData(); }
-    else { document.getElementById('login-page').style.display = 'flex'; }
+    document.getElementById('login-page').style.display = user ? 'none' : 'flex';
+    renderSemua();
 });
 
-// --- LOGIKA WAKTU ---
-function formatWaktuIndo(ts) {
-    const d = new Date(ts);
-    return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+// --- CORE OFFLINE ---
+function tambahDataOffline() {
+    const jenis = document.getElementById('jenis').value, bayar = document.getElementById('bayar').value;
+    const ket = document.getElementById('keterangan').value, skrg = new Date();
+    let harga = 0, laba = 0;
+
+    if (jenis === "Transfer" || jenis === "Tarik Tunai") {
+        harga = parseAngka(document.getElementById('nominal').value);
+        laba = parseAngka(document.getElementById('admin').value);
+    } else {
+        const m = parseAngka(document.getElementById('modal').value), j = parseAngka(document.getElementById('jual').value);
+        harga = j; laba = j - m;
+    }
+
+    if(!harga || !ket) return alert("Nama dan Harga wajib diisi!");
+
+    const dataBaru = {
+        id: "LOKAL-" + Date.now(),
+        waktuFormated: skrg.toLocaleString('id-ID'),
+        tglKey: skrg.toISOString().split('T')[0],
+        blnKey: skrg.getFullYear() + "-" + String(skrg.getMonth() + 1).padStart(2, '0'),
+        thnKey: skrg.getFullYear(),
+        timestamp: Date.now(),
+        jenis, bayar, harga, laba, ket,
+        isUploaded: false
+    };
+
+    dataLokal.push(dataBaru);
+    simpanLokal();
+    alert("Tersimpan di HP!");
+    ["keterangan","modal","jual","nominal","admin"].forEach(id => document.getElementById(id).value = '');
+    renderSemua();
+}
+
+function simpanLokal() {
+    localStorage.setItem('starlink_data', JSON.stringify(dataLokal));
+}
+
+function uploadDataKeCloud() {
+    const dataPending = dataLokal.filter(item => !item.isUploaded);
+    if(dataPending.length === 0) return alert("Semua data sudah ter-upload!");
+    
+    if(!navigator.onLine) return alert("Tidak ada internet! Hubungkan internet dulu.");
+
+    let uploadedCount = 0;
+    dataPending.forEach(item => {
+        const toUpload = {...item};
+        delete toUpload.id; // Hapus ID lokal
+        delete toUpload.isUploaded;
+
+        dbRef.push(toUpload).then(() => {
+            item.isUploaded = true;
+            uploadedCount++;
+            if(uploadedCount === dataPending.length) {
+                // Filter hanya simpan data yang sudah upload (atau hapus dari lokal jika ingin bersih)
+                // Di sini kita tetap simpan di lokal tapi status isUploaded: true
+                simpanLokal();
+                alert("Berhasil Upload " + uploadedCount + " data!");
+                renderSemua();
+            }
+        });
+    });
+}
+
+function renderSemua() {
+    const listH = document.getElementById('listHutang'), listL = document.getElementById('listLunas');
+    listH.innerHTML = ''; listL.innerHTML = '';
+    
+    let tHutang = 0, lHari = 0, lBulan = 0, lTahun = 0;
+    let pending = 0;
+
+    const skrg = new Date();
+    const hariIni = skrg.toISOString().split('T')[0];
+    const bulanIni = skrg.getFullYear() + "-" + String(skrg.getMonth() + 1).padStart(2, '0');
+
+    // Urutkan data terbaru di atas
+    const sortedData = [...dataLokal].sort((a,b) => b.timestamp - a.timestamp);
+
+    sortedData.forEach(item => {
+        if(!item.isUploaded) pending++;
+        const isHutang = item.bayar === 'Belum Lunas';
+        
+        const html = `
+            <div class="list-item ${isHutang ? 'border-hutang' : 'border-lunas'}">
+                ${!item.isUploaded ? '<span class="badge-pending">PENDING</span>' : ''}
+                <b>${item.ket}</b> <br>
+                <small>${item.waktuFormated} • ${item.jenis}</small><br>
+                <small>Rp ${item.harga.toLocaleString('id-ID')} | Laba: ${item.laba.toLocaleString('id-ID')}</small>
+                <div style="margin-top:8px">
+                    <button style="width:auto; padding:5px 10px; font-size:10px; background:gray; color:white;" onclick="hapusLokal('${item.id}')">Hapus</button>
+                    ${isHutang ? `<button style="width:auto; padding:5px 10px; font-size:10px; background:var(--success); color:white;" onclick="ubahStatusLokal('${item.id}', 'Lunas')">LUNASKAN</button>` : ''}
+                </div>
+            </div>`;
+
+        if(isHutang) { listH.innerHTML += html; tHutang += item.harga; }
+        else { 
+            listL.innerHTML += html;
+            if(item.tglKey === hariIni) lHari += item.laba;
+            if(item.blnKey === bulanIni) lBulan += item.laba;
+            if(item.thnKey === skrg.getFullYear()) lTahun += item.laba;
+        }
+    });
+
+    document.getElementById('pendingCount').innerText = pending;
+    document.getElementById('dashLaba').innerText = "Rp " + lBulan.toLocaleString('id-ID');
+    document.getElementById('dashHutang').innerText = "Rp " + tHutang.toLocaleString('id-ID');
+    document.getElementById('labaHari').innerText = "Rp " + lHari.toLocaleString('id-ID');
+    document.getElementById('labaBulan').innerText = "Rp " + lBulan.toLocaleString('id-ID');
+    document.getElementById('labaTahun').innerText = "Rp " + lTahun.toLocaleString('id-ID');
+}
+
+function ubahStatusLokal(id, status) {
+    const idx = dataLokal.findIndex(x => x.id === id);
+    dataLokal[idx].bayar = status;
+    dataLokal[idx].isUploaded = false; // Tandai butuh upload ulang
+    simpanLokal(); renderSemua();
+}
+
+function hapusLokal(id) {
+    if(confirm("Hapus transaksi ini dari HP?")) {
+        dataLokal = dataLokal.filter(x => x.id !== id);
+        simpanLokal(); renderSemua();
+    }
 }
 
 function toggleFields() {
@@ -161,119 +272,18 @@ function toggleFields() {
     document.getElementById('fieldAdmin').classList.toggle('hidden', !isT);
 }
 
-function tambahData() {
-    const jenis = document.getElementById('jenis').value, bayar = document.getElementById('bayar').value;
-    const ket = document.getElementById('keterangan').value, hp = document.getElementById('nomorHP').value;
-    const skrg = new Date();
-    let harga = 0, laba = 0;
-
-    if (jenis === "Transfer" || jenis === "Tarik Tunai") {
-        harga = parseAngka(document.getElementById('nominal').value);
-        laba = parseAngka(document.getElementById('admin').value);
-    } else {
-        const m = parseAngka(document.getElementById('modal').value), j = parseAngka(document.getElementById('jual').value);
-        harga = j; laba = j - m;
-    }
-
-    if(!harga || !ket || !hp) return alert("Lengkapi data!");
-
-    dbRef.push({
-        waktuFormated: formatWaktuIndo(skrg.getTime()),
-        tglKey: skrg.toISOString().split('T')[0], // format: YYYY-MM-DD
-        blnKey: skrg.getFullYear() + "-" + String(skrg.getMonth() + 1).padStart(2, '0'), // format: YYYY-MM
-        thnKey: skrg.getFullYear(), // format: YYYY
-        timestamp: Date.now(),
-        jenis, bayar, hp, harga: harga, laba: laba, ket
-    }).then(() => {
-        alert("Berhasil!");
-        ["keterangan","nomorHP","modal","jual","nominal","admin"].forEach(id => document.getElementById(id).value = '');
-    });
-}
-
-function initData() { dbRef.on('value', (snapshot) => render(snapshot.val())); }
-
-function render(data) {
-    const listH = document.getElementById('listHutang'), listL = document.getElementById('listLunas');
-    listH.innerHTML = ''; listL.innerHTML = '';
-    
-    let tHutang = 0, lHari = 0, lBulan = 0, lTahun = 0, lSemua = 0;
-    
-    const skrg = new Date();
-    const hariIni = skrg.toISOString().split('T')[0];
-    const bulanIni = skrg.getFullYear() + "-" + String(skrg.getMonth() + 1).padStart(2, '0');
-    const tahunIni = skrg.getFullYear();
-
-    if(data) {
-        const items = Object.keys(data).map(k => ({ id: k, ...data[k] })).sort((a,b) => b.timestamp - a.timestamp);
-        items.forEach(item => {
-            const isHutang = item.bayar === 'Belum Lunas';
-            
-            // Logika List Tampilan
-            const html = `
-                <div class="list-item ${isHutang ? 'border-hutang' : 'border-lunas'}">
-                    <b>${item.ket}</b> <br>
-                    <small>${item.waktuFormated} • ${item.jenis}</small><br>
-                    <small>Total: Rp ${item.harga.toLocaleString('id-ID')} | Laba: Rp ${item.laba.toLocaleString('id-ID')}</small>
-                    <div>
-                        ${isHutang 
-                            ? `<button class="btn-wa" style="background:var(--success)" onclick="updateStat('${item.id}', 'Lunas')">LUNASKAN</button>
-                               <button class="btn-wa" onclick="kirimWA('${item.ket}', '${item.hp}', '${item.harga}', '${item.jenis}')">💬 TAGIH</button>` 
-                            : `<button class="btn-wa" style="background:orange" onclick="updateStat('${item.id}', 'Belum Lunas')">↩️ KE HUTANG</button>`}
-                        <button class="btn-wa" style="background:gray" onclick="hapus('${item.id}')">Hapus</button>
-                    </div>
-                </div>`;
-            
-            if(isHutang) { 
-                listH.innerHTML += html; 
-                tHutang += item.harga; 
-            } else { 
-                listL.innerHTML += html;
-                // Hitung Laba hanya yang LUNAS
-                lSemua += item.laba;
-                if(item.tglKey === hariIni) lHari += item.laba;
-                if(item.blnKey === bulanIni) lBulan += item.laba;
-                if(item.thnKey == tahunIni) lTahun += item.laba;
-            }
-        });
-    }
-
-    // Update Dashboard & Laporan
-    document.getElementById('dashLaba').innerText = "Rp " + lBulan.toLocaleString('id-ID');
-    document.getElementById('dashHutang').innerText = "Rp " + tHutang.toLocaleString('id-ID');
-    document.getElementById('labaHari').innerText = "Rp " + lHari.toLocaleString('id-ID');
-    document.getElementById('labaBulan').innerText = "Rp " + lBulan.toLocaleString('id-ID');
-    document.getElementById('labaTahun').innerText = "Rp " + lTahun.toLocaleString('id-ID');
-    document.getElementById('labaSemua').innerText = "Rp " + lSemua.toLocaleString('id-ID');
-}
-
-function updateStat(id, stat) { dbRef.child(id).update({ bayar: stat }); }
-function hapus(id) { if(confirm("Hapus data?")) dbRef.child(id).remove(); }
-function kirimWA(n, h, m, j) {
-    let hp = h.replace(/[^0-9]/g, ""); if(hp.startsWith("0")) hp = "62" + hp.slice(1);
-    window.open(`https://wa.me/${hp}?text=${encodeURIComponent(templatePesanWA(n, j, m))}`, '_blank');
-}
-async function ambilKontak() {
-    try {
-        const c = await navigator.contacts.select(['name', 'tel'], {multiple: false});
-        if (c.length) {
-            document.getElementById('keterangan').value = c[0].name[0];
-            document.getElementById('nomorHP').value = c[0].tel[0].replace(/[^0-9]/g, "");
-        }
-    } catch (e) { alert("Gunakan Chrome Android + HTTPS"); }
-}
 function bukaHalaman(pg, el) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById('page-' + pg).classList.add('active');
     el.classList.add('active');
 }
+
 function exportKeExcel() {
-    dbRef.once('value', (s) => {
-        const ws = XLSX.utils.json_to_sheet(Object.values(s.val() || {}));
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Laporan");
-        XLSX.writeFile(wb, "Starlink_Laporan.xlsx");
-    });
+    const ws = XLSX.utils.json_to_sheet(dataLokal);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Laporan");
+    XLSX.writeFile(wb, "Starlink_Lokal.xlsx");
 }
 </script>
 </body>
