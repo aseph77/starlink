@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>STARLINK CLOUD v18.1 (Fix Upload)</title>
+    <title>STARLINK CLOUD v20</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
@@ -30,8 +30,7 @@
         .hidden { display: none; }
         button { width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
         .btn-add { background: var(--primary); color: white; }
-        .btn-upload { background: var(--warning); color: white; margin-top: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .btn-upload:active { transform: scale(0.98); }
+        .btn-upload { background: var(--warning); color: white; margin-top: 10px; }
         .list-item { background: white; padding: 12px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #ddd; position: relative; }
         .border-hutang { border-left-color: var(--danger); }
         .border-lunas { border-left-color: var(--success); }
@@ -52,7 +51,7 @@
     </div>
 </div>
 
-<div style="background: var(--dark); color: white; padding: 15px; text-align: center; font-weight: bold;">🚀 STARLINK POS v18.1 (OFFLINE)</div>
+<div style="background: var(--dark); color: white; padding: 15px; text-align: center; font-weight: bold;">🚀 STARLINK POS v20 (REALTIME SYNC)</div>
 
 <div class="container">
     <div id="page-kasir" class="page active">
@@ -75,7 +74,7 @@
             <div class="form-group"><label>Status Bayar</label>
                 <select id="bayar"><option value="Lunas">Lunas</option><option value="Belum Lunas">Belum Lunas (Hutang)</option></select>
             </div>
-            <button class="btn-add" onclick="tambahDataOffline()">SIMPAN KE HP</button>
+            <button class="btn-add" onclick="tambahDataHybrid()">SIMPAN TRANSAKSI</button>
         </div>
     </div>
 
@@ -85,8 +84,8 @@
     <div id="page-laporan" class="page">
         <h3>📊 Laporan & Sinkron</h3>
         <div class="card" style="background: #fffbeb; border: 1px solid #fde68a;">
-            <p style="font-size: 12px; margin: 0;">Data belum upload: <b id="pendingCount">0</b></p>
-            <button class="btn-upload" onclick="uploadDataKeCloud()">☁️ UPLOAD DATA KE CLOUD</button>
+            <p style="font-size: 12px; margin: 0;">Data belum tersinkron: <b id="pendingCount">0</b></p>
+            <button class="btn-upload" onclick="uploadDataKeCloud()">☁️ UPLOAD / SINKRON MANUAL</button>
         </div>
         <div class="card">
             <div class="stat-card"><span>Laba Hari Ini</span><b id="labaHari">0</b></div>
@@ -106,6 +105,7 @@
 </div>
 
 <script>
+// --- CONFIG FIREBASE ---
 const firebaseConfig = {
   apiKey: "AIzaSyBGkyMU8UzjeGWsYRf2AO_txvsE0gPqsYY",
   authDomain: "catatan-starlink.firebaseapp.com",
@@ -129,18 +129,51 @@ function formatRibuan(i) {
 }
 function parseAngka(s) { return parseInt(s.replace(/\./g, "")) || 0; }
 
+// --- AUTH & REALTIME LISTEN ---
 function login() {
     const e = document.getElementById('loginEmail').value, p = document.getElementById('loginPassword').value;
     auth.signInWithEmailAndPassword(e, p).catch(err => alert(err.message));
 }
 function logout() { auth.signOut(); }
+
 auth.onAuthStateChanged(user => {
     document.getElementById('login-page').style.display = user ? 'none' : 'flex';
-    if(user) db.goOnline();
-    renderSemua();
+    if(user) {
+        db.goOnline();
+        listenCloud(); // Aktifkan Realtime Sync antar perangkat
+    }
 });
 
-function tambahDataOffline() {
+// MENDENGARKAN DATA DARI CLOUD ( Agar Perangkat 1 & 2 Sinkron )
+function listenCloud() {
+    dbRef.on('value', (snapshot) => {
+        const cloudData = snapshot.val();
+        if (cloudData) {
+            // Gabungkan data cloud ke lokal jika belum ada
+            const cloudArray = Object.keys(cloudData).map(key => ({
+                id: key,
+                ...cloudData[key],
+                isUploaded: true
+            }));
+
+            // Filter data lokal yang isUploaded=false (data pending)
+            const localPending = dataLokal.filter(item => !item.isUploaded);
+            
+            // Gabungkan: Data Cloud + Data Lokal yang masih pending
+            dataLokal = [...cloudArray, ...localPending];
+            
+            // Hilangkan duplikasi berdasarkan timestamp/id
+            const uniqueData = Array.from(new Map(dataLokal.map(item => [item.timestamp + item.ket, item])).values());
+            dataLokal = uniqueData;
+            
+            localStorage.setItem('starlink_data', JSON.stringify(dataLokal));
+            renderSemua();
+        }
+    });
+}
+
+// SIMPAN DATA (Hybrid: Save Local + Auto Push to Cloud)
+function tambahDataHybrid() {
     const jenis = document.getElementById('jenis').value, bayar = document.getElementById('bayar').value;
     const ket = document.getElementById('keterangan').value, skrg = new Date();
     let harga = 0, laba = 0;
@@ -155,58 +188,54 @@ function tambahDataOffline() {
 
     if(!harga || !ket) return alert("Isi Nama & Harga!");
 
-    const dataBaru = {
-        id: "ID-" + Date.now(),
+    const payload = {
         waktuFormated: skrg.toLocaleString('id-ID'),
         tglKey: skrg.toISOString().split('T')[0],
         blnKey: skrg.getFullYear() + "-" + String(skrg.getMonth() + 1).padStart(2, '0'),
         thnKey: skrg.getFullYear(),
         timestamp: Date.now(),
-        jenis, bayar, harga, laba, ket,
-        isUploaded: false
+        jenis, bayar, harga, laba, ket
     };
 
-    dataLokal.push(dataBaru);
+    // 1. Simpan ke HP Dulu (Status: Pending)
+    const localEntry = { ...payload, id: "TEMP-" + payload.timestamp, isUploaded: false };
+    dataLokal.push(localEntry);
     localStorage.setItem('starlink_data', JSON.stringify(dataLokal));
     renderSemua();
+
+    // 2. Langsung Coba Push ke Cloud (Realtime)
+    if (navigator.onLine) {
+        dbRef.push(payload).then(() => {
+            // Jika berhasil masuk cloud, hapus entry temp lokal
+            dataLokal = dataLokal.filter(x => x.timestamp !== payload.timestamp);
+            localStorage.setItem('starlink_data', JSON.stringify(dataLokal));
+        }).catch(e => console.log("Gagal push realtime, tersimpan di lokal saja."));
+    }
+
     ["keterangan","modal","jual","nominal","admin"].forEach(id => document.getElementById(id).value = '');
-    alert("Tersimpan di HP!");
+    alert("Transaksi Dicatat!");
 }
 
-// FIX TOMBOL UPLOAD
+// TOMBOL UPLOAD MANUAL (Untuk Sinkronisasi Terakhir)
 function uploadDataKeCloud() {
     const dataPending = dataLokal.filter(item => !item.isUploaded);
-    if(dataPending.length === 0) return alert("Semua data sudah ter-upload!");
-    if(!navigator.onLine) return alert("Tidak ada internet!");
-    if(!auth.currentUser) return alert("Sesi login habis. Silakan refresh.");
+    if(dataPending.length === 0) return alert("Semua data sudah sinkron antar perangkat!");
+    if(!navigator.onLine) return alert("Hubungkan internet untuk sinkron!");
 
-    db.goOnline(); 
     let sukses = 0;
-    
     dataPending.forEach(item => {
-        const toCloud = {
-            waktuFormated: item.waktuFormated,
-            tglKey: item.tglKey,
-            blnKey: item.blnKey,
-            thnKey: item.thnKey,
-            timestamp: item.timestamp,
-            jenis: item.jenis,
-            bayar: item.bayar,
-            harga: item.harga,
-            laba: item.laba,
-            ket: item.ket
-        };
+        const clean = { ...item };
+        delete clean.id; delete clean.isUploaded;
 
-        dbRef.push(toCloud).then(() => {
-            const idx = dataLokal.findIndex(x => x.id === item.id);
-            if(idx !== -1) dataLokal[idx].isUploaded = true;
+        dbRef.push(clean).then(() => {
+            dataLokal = dataLokal.filter(x => x.id !== item.id);
             sukses++;
             if(sukses === dataPending.length) {
                 localStorage.setItem('starlink_data', JSON.stringify(dataLokal));
+                alert("✅ Sinkronisasi Berhasil!");
                 renderSemua();
-                alert("✅ Berhasil Upload " + sukses + " data!");
             }
-        }).catch(err => console.error("Gagal:", err));
+        });
     });
 }
 
@@ -225,8 +254,8 @@ function renderSemua() {
                 <b>${item.ket}</b> <br><small>${item.waktuFormated} • ${item.jenis}</small><br>
                 <small>Rp ${item.harga.toLocaleString('id-ID')} | Laba: ${item.laba.toLocaleString('id-ID')}</small>
                 <div>
-                    <button class="btn-action" style="background:gray" onclick="hapusLokal('${item.id}')">Hapus</button>
-                    ${isH ? `<button class="btn-action" style="background:var(--success)" onclick="ubahStatLokal('${item.id}', 'Lunas')">LUNASKAN</button>` : `<button class="btn-action" style="background:orange" onclick="ubahStatLokal('${item.id}', 'Belum Lunas')">↩️ KE HUTANG</button>`}
+                    <button class="btn-action" style="background:gray" onclick="hapusData('${item.id}')">Hapus</button>
+                    ${isH ? `<button class="btn-action" style="background:var(--success)" onclick="ubahStatus('${item.id}', 'Lunas')">LUNASKAN</button>` : `<button class="btn-action" style="background:orange" onclick="ubahStatus('${item.id}', 'Belum Lunas')">↩️ KE HUTANG</button>`}
                 </div>
             </div>`;
         if(isH) { listH.innerHTML += html; tH += item.harga; }
@@ -241,14 +270,22 @@ function renderSemua() {
     document.getElementById('labaTahun').innerText = "Rp " + lT.toLocaleString('id-ID');
 }
 
-function ubahStatLokal(id, s) {
-    const idx = dataLokal.findIndex(x => x.id === id);
-    dataLokal[idx].bayar = s;
-    dataLokal[idx].isUploaded = false;
-    localStorage.setItem('starlink_data', JSON.stringify(dataLokal));
-    renderSemua();
+function ubahStatus(id, s) {
+    if(id.startsWith("TEMP-")) return alert("Upload dulu data pending ini sebelum diubah!");
+    dbRef.child(id).update({ bayar: s });
 }
-function hapusLokal(id) { if(confirm("Hapus?")) { dataLokal = dataLokal.filter(x => x.id !== id); localStorage.setItem('starlink_data', JSON.stringify(dataLokal)); renderSemua(); }}
+
+function hapusData(id) {
+    if(!confirm("Hapus transaksi?")) return;
+    if(id.startsWith("TEMP-")) {
+        dataLokal = dataLokal.filter(x => x.id !== id);
+        localStorage.setItem('starlink_data', JSON.stringify(dataLokal));
+        renderSemua();
+    } else {
+        dbRef.child(id).remove();
+    }
+}
+
 function toggleFields() {
     const j = document.getElementById('jenis').value, isT = (j === "Transfer" || j === "Tarik Tunai");
     document.getElementById('fieldModal').classList.toggle('hidden', isT);
