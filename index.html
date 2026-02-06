@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>STARLINK CLOUD v18</title>
+    <title>STARLINK CLOUD v18.1 (Fix Upload)</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
@@ -30,7 +30,8 @@
         .hidden { display: none; }
         button { width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
         .btn-add { background: var(--primary); color: white; }
-        .btn-upload { background: var(--warning); color: white; margin-top: 10px; }
+        .btn-upload { background: var(--warning); color: white; margin-top: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .btn-upload:active { transform: scale(0.98); }
         .list-item { background: white; padding: 12px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #ddd; position: relative; }
         .border-hutang { border-left-color: var(--danger); }
         .border-lunas { border-left-color: var(--success); }
@@ -51,7 +52,7 @@
     </div>
 </div>
 
-<div style="background: var(--dark); color: white; padding: 15px; text-align: center; font-weight: bold;">🚀 STARLINK POS v18 (OFFLINE)</div>
+<div style="background: var(--dark); color: white; padding: 15px; text-align: center; font-weight: bold;">🚀 STARLINK POS v18.1 (OFFLINE)</div>
 
 <div class="container">
     <div id="page-kasir" class="page active">
@@ -79,7 +80,6 @@
     </div>
 
     <div id="page-hutang" class="page"><h3>🔴 Daftar Hutang</h3><div id="listHutang"></div></div>
-    
     <div id="page-selesai" class="page"><h3>✅ Riwayat Selesai</h3><div id="listLunas"></div></div>
     
     <div id="page-laporan" class="page">
@@ -106,7 +106,6 @@
 </div>
 
 <script>
-// --- CONFIG FIREBASE ---
 const firebaseConfig = {
   apiKey: "AIzaSyBGkyMU8UzjeGWsYRf2AO_txvsE0gPqsYY",
   authDomain: "catatan-starlink.firebaseapp.com",
@@ -117,11 +116,11 @@ const firebaseConfig = {
   appId: "1:974645078052:web:d8cc92795feba8325990b1"
 };
 
-firebase.initializeApp(firebaseConfig);
-const dbRef = firebase.database().ref('transaksi');
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const dbRef = db.ref('transaksi');
 const auth = firebase.auth();
 
-// --- LOCAL DB ---
 let dataLokal = JSON.parse(localStorage.getItem('starlink_data')) || [];
 
 function formatRibuan(i) {
@@ -130,7 +129,6 @@ function formatRibuan(i) {
 }
 function parseAngka(s) { return parseInt(s.replace(/\./g, "")) || 0; }
 
-// --- AUTH ---
 function login() {
     const e = document.getElementById('loginEmail').value, p = document.getElementById('loginPassword').value;
     auth.signInWithEmailAndPassword(e, p).catch(err => alert(err.message));
@@ -138,10 +136,10 @@ function login() {
 function logout() { auth.signOut(); }
 auth.onAuthStateChanged(user => {
     document.getElementById('login-page').style.display = user ? 'none' : 'flex';
+    if(user) db.goOnline();
     renderSemua();
 });
 
-// --- OFFLINE STORAGE ---
 function tambahDataOffline() {
     const jenis = document.getElementById('jenis').value, bayar = document.getElementById('bayar').value;
     const ket = document.getElementById('keterangan').value, skrg = new Date();
@@ -155,7 +153,7 @@ function tambahDataOffline() {
         harga = j; laba = j - m;
     }
 
-    if(!harga || !ket) return alert("Nama dan Harga wajib diisi!");
+    if(!harga || !ket) return alert("Isi Nama & Harga!");
 
     const dataBaru = {
         id: "ID-" + Date.now(),
@@ -170,111 +168,99 @@ function tambahDataOffline() {
 
     dataLokal.push(dataBaru);
     localStorage.setItem('starlink_data', JSON.stringify(dataLokal));
-    alert("Tersimpan!");
-    ["keterangan","modal","jual","nominal","admin"].forEach(id => document.getElementById(id).value = '');
     renderSemua();
+    ["keterangan","modal","jual","nominal","admin"].forEach(id => document.getElementById(id).value = '');
+    alert("Tersimpan di HP!");
 }
 
+// FIX TOMBOL UPLOAD
 function uploadDataKeCloud() {
     const dataPending = dataLokal.filter(item => !item.isUploaded);
-    if(dataPending.length === 0) return alert("Semua data sudah sinkron!");
-    if(!navigator.onLine) return alert("Cek koneksi internet!");
+    if(dataPending.length === 0) return alert("Semua data sudah ter-upload!");
+    if(!navigator.onLine) return alert("Tidak ada internet!");
+    if(!auth.currentUser) return alert("Sesi login habis. Silakan refresh.");
 
-    let count = 0;
+    db.goOnline(); 
+    let sukses = 0;
+    
     dataPending.forEach(item => {
-        const toCloud = {...item};
-        delete toCloud.id; delete toCloud.isUploaded;
+        const toCloud = {
+            waktuFormated: item.waktuFormated,
+            tglKey: item.tglKey,
+            blnKey: item.blnKey,
+            thnKey: item.thnKey,
+            timestamp: item.timestamp,
+            jenis: item.jenis,
+            bayar: item.bayar,
+            harga: item.harga,
+            laba: item.laba,
+            ket: item.ket
+        };
 
         dbRef.push(toCloud).then(() => {
-            item.isUploaded = true;
-            count++;
-            if(count === dataPending.length) {
+            const idx = dataLokal.findIndex(x => x.id === item.id);
+            if(idx !== -1) dataLokal[idx].isUploaded = true;
+            sukses++;
+            if(sukses === dataPending.length) {
                 localStorage.setItem('starlink_data', JSON.stringify(dataLokal));
-                alert("Berhasil Upload " + count + " data!");
                 renderSemua();
+                alert("✅ Berhasil Upload " + sukses + " data!");
             }
-        });
+        }).catch(err => console.error("Gagal:", err));
     });
 }
 
 function renderSemua() {
     const listH = document.getElementById('listHutang'), listL = document.getElementById('listLunas');
     listH.innerHTML = ''; listL.innerHTML = '';
-    
-    let tHutang = 0, lHari = 0, lBulan = 0, lTahun = 0, pending = 0;
-    const skrg = new Date();
-    const hariIni = skrg.toISOString().split('T')[0];
-    const bulanIni = skrg.getFullYear() + "-" + String(skrg.getMonth() + 1).padStart(2, '0');
+    let tH = 0, lH = 0, lB = 0, lT = 0, pnd = 0;
+    const skrg = new Date(), hrIni = skrg.toISOString().split('T')[0], blnIni = skrg.getFullYear() + "-" + String(skrg.getMonth() + 1).padStart(2, '0');
 
-    const sorted = [...dataLokal].sort((a,b) => b.timestamp - a.timestamp);
-
-    sorted.forEach(item => {
-        if(!item.isUploaded) pending++;
-        const isHutang = item.bayar === 'Belum Lunas';
-        
+    [...dataLokal].sort((a,b) => b.timestamp - a.timestamp).forEach(item => {
+        if(!item.isUploaded) pnd++;
+        const isH = item.bayar === 'Belum Lunas';
         const html = `
-            <div class="list-item ${isHutang ? 'border-hutang' : 'border-lunas'}">
+            <div class="list-item ${isH ? 'border-hutang' : 'border-lunas'}">
                 ${!item.isUploaded ? '<span class="badge-pending">PENDING</span>' : ''}
-                <b>${item.ket}</b> <br>
-                <small>${item.waktuFormated} • ${item.jenis}</small><br>
-                <small>Rp ${item.harga.toLocaleString('id-ID')} (Laba: ${item.laba.toLocaleString('id-ID')})</small>
+                <b>${item.ket}</b> <br><small>${item.waktuFormated} • ${item.jenis}</small><br>
+                <small>Rp ${item.harga.toLocaleString('id-ID')} | Laba: ${item.laba.toLocaleString('id-ID')}</small>
                 <div>
                     <button class="btn-action" style="background:gray" onclick="hapusLokal('${item.id}')">Hapus</button>
-                    ${isHutang 
-                        ? `<button class="btn-action" style="background:var(--success)" onclick="ubahStatusLokal('${item.id}', 'Lunas')">LUNASKAN</button>` 
-                        : `<button class="btn-action" style="background:orange" onclick="ubahStatusLokal('${item.id}', 'Belum Lunas')">↩️ KE HUTANG</button>`}
+                    ${isH ? `<button class="btn-action" style="background:var(--success)" onclick="ubahStatLokal('${item.id}', 'Lunas')">LUNASKAN</button>` : `<button class="btn-action" style="background:orange" onclick="ubahStatLokal('${item.id}', 'Belum Lunas')">↩️ KE HUTANG</button>`}
                 </div>
             </div>`;
-
-        if(isHutang) { listH.innerHTML += html; tHutang += item.harga; }
-        else { 
-            listL.innerHTML += html;
-            if(item.tglKey === hariIni) lHari += item.laba;
-            if(item.blnKey === bulanIni) lBulan += item.laba;
-            if(item.thnKey === skrg.getFullYear()) lTahun += item.laba;
-        }
+        if(isH) { listH.innerHTML += html; tH += item.harga; }
+        else { listL.innerHTML += html; if(item.tglKey===hrIni) lH+=item.laba; if(item.blnKey===blnIni) lB+=item.laba; if(item.thnKey===skrg.getFullYear()) lT+=item.laba; }
     });
 
-    document.getElementById('pendingCount').innerText = pending;
-    document.getElementById('dashLaba').innerText = "Rp " + lBulan.toLocaleString('id-ID');
-    document.getElementById('dashHutang').innerText = "Rp " + tHutang.toLocaleString('id-ID');
-    document.getElementById('labaHari').innerText = "Rp " + lHari.toLocaleString('id-ID');
-    document.getElementById('labaBulan').innerText = "Rp " + lBulan.toLocaleString('id-ID');
-    document.getElementById('labaTahun').innerText = "Rp " + lTahun.toLocaleString('id-ID');
+    document.getElementById('pendingCount').innerText = pnd;
+    document.getElementById('dashLaba').innerText = "Rp " + lB.toLocaleString('id-ID');
+    document.getElementById('dashHutang').innerText = "Rp " + tH.toLocaleString('id-ID');
+    document.getElementById('labaHari').innerText = "Rp " + lH.toLocaleString('id-ID');
+    document.getElementById('labaBulan').innerText = "Rp " + lB.toLocaleString('id-ID');
+    document.getElementById('labaTahun').innerText = "Rp " + lT.toLocaleString('id-ID');
 }
 
-function ubahStatusLokal(id, status) {
+function ubahStatLokal(id, s) {
     const idx = dataLokal.findIndex(x => x.id === id);
-    dataLokal[idx].bayar = status;
-    dataLokal[idx].isUploaded = false; // Tandai pending agar bisa di-sinkron ulang statusnya
+    dataLokal[idx].bayar = s;
+    dataLokal[idx].isUploaded = false;
     localStorage.setItem('starlink_data', JSON.stringify(dataLokal));
     renderSemua();
 }
-
-function hapusLokal(id) {
-    if(confirm("Hapus transaksi ini?")) {
-        dataLokal = dataLokal.filter(x => x.id !== id);
-        localStorage.setItem('starlink_data', JSON.stringify(dataLokal));
-        renderSemua();
-    }
-}
-
+function hapusLokal(id) { if(confirm("Hapus?")) { dataLokal = dataLokal.filter(x => x.id !== id); localStorage.setItem('starlink_data', JSON.stringify(dataLokal)); renderSemua(); }}
 function toggleFields() {
-    const jenis = document.getElementById('jenis').value;
-    const isT = (jenis === "Transfer" || jenis === "Tarik Tunai");
+    const j = document.getElementById('jenis').value, isT = (j === "Transfer" || j === "Tarik Tunai");
     document.getElementById('fieldModal').classList.toggle('hidden', isT);
     document.getElementById('fieldJual').classList.toggle('hidden', isT);
     document.getElementById('fieldNominal').classList.toggle('hidden', !isT);
     document.getElementById('fieldAdmin').classList.toggle('hidden', !isT);
 }
-
-function bukaHalaman(pg, el) {
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    document.getElementById('page-' + pg).classList.add('active');
-    el.classList.add('active');
+function bukaHalaman(p, e) {
+    document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
+    document.getElementById('page-' + p).classList.add('active'); e.classList.add('active');
 }
-
 function exportKeExcel() {
     const ws = XLSX.utils.json_to_sheet(dataLokal);
     const wb = XLSX.utils.book_new();
